@@ -1,0 +1,7 @@
+{
+  "name": "inkscape-mcp",
+  "transport": "stdio",
+  "command": "node bin/inkscape-mcp.js",
+  "env": { "MCP_TRANSPORT": "stdio" },
+  "description": "Inkscape MCP server (MIT) — trace_bitmap + render_preview"
+}
