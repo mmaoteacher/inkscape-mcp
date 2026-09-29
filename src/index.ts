@@ -8,7 +8,10 @@ import { tools } from "./tools/index.ts";
 const server = new McpServer({ name: "inkscape-mcp", version: "0.1.0" });
 
 for (const tool of tools) {
-  server.tool(tool.name, tool.schema, async (args: any) => {
+  const rawSchema = (tool.schema as any)._def?.typeName === "ZodObject"
+    ? (tool.schema as any).shape || {}
+    : (Object.keys((tool.schema as any)?.shape || {}).length > 0 ? (tool.schema as any).shape : tool.schema);
+  server.tool(tool.name, rawSchema, async (args: any) => {
     return await tool.handler(args);
   });
 }
