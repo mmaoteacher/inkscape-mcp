@@ -19,7 +19,7 @@ export async function traceBitmap(args: z.infer<typeof traceSchema>) {
     `--file=${args.inputPath}`,
     `--export-filename=${outFile}`,
     `--export-type=svg`,
-    `--actions=select-all;object-trace:brightness-steps=${args.brightnessSteps},threshold=${args.threshold};object-to-path`,
+    `--actions=select-all;object-trace:${args.brightnessSteps},true,false,false;object-to-path`,
   ];
 
   const result = spawnSync(binary, actions, { encoding: "utf-8", timeout: 30000 });
