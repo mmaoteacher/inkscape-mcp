@@ -8,7 +8,7 @@ import { tools } from "./tools/index.ts";
 const server = new McpServer({ name: "inkscape-mcp", version: "0.1.0" });
 
 for (const tool of tools) {
-  server.tool(tool.name, tool.schema.describe ? tool.schema.describe() : {}, async (args: any) => {
+  server.tool(tool.name, tool.schema, async (args: any) => {
     return await tool.handler(args);
   });
 }
