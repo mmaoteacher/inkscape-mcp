@@ -1,4 +1,5 @@
-import { spawnSync, existsSync } from "fs";
+import { spawnSync } from "child_process";
+import { existsSync } from "fs";
 
 const MACOS_APP_PATH = "/Applications/Inkscape.app/Contents/MacOS/inkscape";
 

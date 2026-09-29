@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { spawnSync } from "child_process";
+import { readFileSync, existsSync } from "fs";
 import { detectInkscape } from "../engine/detector.ts";
 
 export const previewSchema = z.object({
@@ -21,11 +22,16 @@ export async function renderPreview(args: z.infer<typeof previewSchema>) {
   ].filter(Boolean);
 
   const result = spawnSync(binary, actions, { encoding: "utf-8", timeout: 30000 });
-  const base64Data = result.status === 0 ? "(real png generated)" : "(preview generation failed)";
+  let base64Data = "";
+  if (result.status === 0 && existsSync(outFile)) {
+    base64Data = readFileSync(outFile).toString("base64");
+  } else {
+    base64Data = Buffer.from("(preview generation failed: " + result.stderr.slice(0, 200) + ")").toString("base64");
+  }
   return {
     content: [
-      { type: "text" as const, text: `Rendered preview for ${args.filePath} using binary: ${binary}` },
-      { type: "image" as const, data: Buffer.from(base64Data).toString("base64"), mimeType: "image/png" },
+      { type: "text" as const, text: `Rendered preview for ${args.filePath} using binary: ${binary} (status=${result.status})` },
+      { type: "image" as const, data: base64Data, mimeType: "image/png" },
     ],
   };
 }
