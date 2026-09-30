@@ -88,6 +88,45 @@
 - [PASS] Base64 資料非 mock（長度 62980 字元，對應真 PNG 內容）
 - [PASS] `Binary: /Applications/Inkscape.app/Contents/MacOS/inkscape`（使用偵測到的真路徑，不是 `"inkscape"` 字串）
 
+#### C. `inkscape_crop_bitmap`（裁切 + 去雜訊，修正版）
+
+**原缺陷（已修正）**：舊版回報 `Status: OK` 但實際上什麼都沒做 —— `--export-area` 對 **SVG 輸出無效**，
+且去雜訊 action 名稱錯誤（`bitmap-effect.despeckle` 不存在），輸出仍是 899K 的原圖內嵌 SVG。
+
+| 項目 | 修正內容 |
+|---|---|
+| 去雜訊 action | `org.inkscape.effect.bitmap.despeckle.noprefs`（`.noprefs` 為 headless 必要變體） |
+| 裁切單位換算 | `cropArea` 以**原圖像素**輸入，內部換算為 document units |
+| 輸出解析度 | 以 `--export-dpi=96/scale` 還原原圖像素尺寸 |
+| 死碼 | 移除算出卻未使用的 `actions` 陣列 |
+| 輸出驗證 | 讀回產出並比對尺寸，不符即 `FAILED` + `isError: true` |
+| 邊界檢查 | `cropArea` 超出原圖範圍直接明確報錯 |
+| SVG 輸出 | 兩階段：先裁成 PNG 再包進 SVG，並註明需接 `trace` 才是向量 |
+
+**為何需要換算**：`--export-area` 使用 SVG user units，而 642px 的 PNG 以 144 DPI 匯入後
+文件僅 428 units（比例 0.6667）。實測 `logo.1.png`：
+
+| 用例 | 輸入 | 輸出 | 結果 |
+|---|---|---|---|
+| 裁切 + 去雜訊 | `100,150 200x200` | `200x200` | ✅ OK |
+| 只裁切 | `0,0 300x250` | `300x250` | ✅ OK |
+| 不給 area | — | `428x493`（全圖） | ✅ OK |
+| SVG 輸出 | `50,50 120x120` | `120x120` | ✅ OK（包裝點陣，已註記） |
+| 輸入不存在 | `nope.png` | — | ✅ FAILED |
+| area 超出邊界 | `5000,0 100x100` | — | ✅ FAILED（明確報錯） |
+
+> `--export-area-snap` 會把區域對齊到整數 document unit，導致 200x200 變成 203x201，故**不使用**。
+
+#### D. 建置與型別驗證（修正版）
+
+- [PASS] `npm run typecheck` / `npm run build` **零錯誤**（修正前為 13 個錯誤）
+- [PASS] `tsconfig.json` 補上 `allowImportingTsExtensions`、`types: ["node"]`、`lib`、`forceConsistentCasingInFileNames`
+- [PASS] 移除未宣告依賴 `express`（原為 `node_modules` 內的傳遞依賴，乾淨安裝會失效），
+      HTTP 傳輸改用內建 `node:http`，零 web framework 依賴
+- [PASS] 外部 import 全部對應已宣告依賴：`@modelcontextprotocol/sdk`、`zod`（其餘皆為 node 內建模組）
+- [PASS] `Streamable HTTP` 實測：`/health` 回 `{"status":"ok"}`、`/mcp` initialize 回 SSE、
+      `tools/list` 回完整 3 個工具（2500 bytes）、未知路徑回 404
+
 ### 2.4 高階語意抽象（`ShellDaemonEngine`）
 
 - [PASS] `init()` 啟動真 `inkscape --shell` 子進程（`binaryPath` 自動偵測為 macOS 路徑）
