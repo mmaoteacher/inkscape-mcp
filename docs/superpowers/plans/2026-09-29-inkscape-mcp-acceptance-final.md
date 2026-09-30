@@ -41,20 +41,44 @@
 #### A. `inkscape_trace_bitmap`（點陣 → 向量）
 
 - [PASS] 使用真 PNG 測試檔案：`logo.1.png`（617K PNG）、`logo.2.png`（244K PNG）
-- [PASS] `object-trace:3,true,false,false`（3 色階、平滑啟用、堆疊關閉、背景保留關閉）執行成功
-- [PASS] 產出真 SVG：`logo.1_traced.svg`（879K）、`logo.2_traced.svg`（347K）
+- [PASS] `object-trace` 完整 7 參數格式：`{scans},{smooth},{stack},{remove_background},{speckles},{smooth_corners},{optimize}`
+- [PASS] 產出**真向量** SVG：`<path>` 元素存在，且**無** `<image>` / `base64` 內嵌點陣
 - [PASS] `Status: OK`、`Binary: /Applications/Inkscape.app/Contents/MacOS/inkscape`
-- [NOTE] `Stderr` 有 `--file= is deprecated`（正常警告，不影響功能）；純色 SVG 輸入時可能出現 `selection has no visual bounding box!`（正常，不影響 PNG 輸入的 trace 結果）
+- [NOTE] `Stderr` 有 `--file= is deprecated`（正常警告，不影響功能）
+
+**兩階段匯出（必要）：**
+
+| 階段 | 動作 | 說明 |
+|---|---|---|
+| Pass 1 | `select-all;object-trace:<7參數>;object-to-path` | 產生向量路徑，但原始 `<image>` 仍留在文件中 |
+| Pass 2 | `select-by-element:image;delete` | 移除殘留點陣，輸出純向量 |
+
+> 舊版僅執行 Pass 1，且 `object-trace` 只給 4 個參數（Inkscape 拒絕解析），
+> 導致輸出退化成「原 PNG 以 base64 內嵌的 SVG」（879K），`Status` 卻仍回報 `OK`。
+
+**輸出驗證（新增，避免假成功）：**
+
+`traceBitmap` 現在會讀回輸出並檢查三項，任一不符即回報 `FAILED` 並帶 `isError: true`：
+
+1. `<path>` 元素數量 > 0
+2. 不含 `<image>` 元素
+3. 不含 `data:image/*;base64`
 
 **新增 3 個 SVG 功能驗證：**
 
-| 功能 | 參數設定 | 測試檔案 | 結果 |
-|---|---|---|---|
-| SVG 平滑（向量路徑簡化） | `smoothing: true`（預設） | `logo.1.png` | ✅ `path-simplify` 已整合至 `fullActions` |
-| 指定拆色數（色階控制） | `colorCount: 4`（對應 `scans=4`） | `logo.1.png` | ✅ `object-trace` 使用 `scans` 參數控制色階 |
-| 黑白二分（二值化） | `binary: true`（`threshold` 固定 0.5） | `logo.2.png` | ✅ 回傳純黑白 SVG（`Status: OK`） |
+| 功能 | 參數設定 | 測試檔案 | 輸出 | 結果 |
+|---|---|---|---|---|
+| SVG 平滑 | `smoothing: true`（預設） | `logo.1.png` | `logo.1_2color_smooth.svg`（13K，2 paths） | ✅ potrace corner 最佳化 |
+| 指定拆色數 | `colorCount: 2` / `3` | `logo.1.png` | `logo.1_3color.svg`（60K，3 paths） | ✅ `scans` 參數控制色階 |
+| 黑白二分 | `binary: true` | `logo.1.png` | `logo.1_binary_smooth_fixed.svg`（13K，2 paths） | ✅ 依相對亮度收斂為純 `#000000` / `#ffffff` |
+
+> `binary` 實作為「兩色收斂」而非 `scans=1`：`scans=1` 會退化成單一滿版矩形（實測 974B、渲染全白），
+> 因此固定 `scans >= 2`，再依各層相對亮度映射到黑/白兩色。
+> `colorCount` 因此被限制在 **2–8**。
 
 - [PASS] 新功能均透過 `spawnSync` 真實執行（非純文字回傳），回傳包含真 `stdout/stderr`、`Status`、`Binary` 路徑
+- [PASS] 失敗路徑驗證：輸入不存在的檔案時正確回報 `Status: FAILED` + `isError: true`
+- [PASS] MCP `tools/call` 端對端驗證：`inkscape_trace_bitmap` 產出 2 paths、fills 僅 `#000000`/`#ffffff`
 
 #### B. `inkscape_render_preview`（視覺反饋，真 PNG 回傳 Base64）
 

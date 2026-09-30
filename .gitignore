@@ -1,1 +1,10 @@
 node_modules/
+
+# Generated trace/preview/crop artifacts from logo.*.png test inputs
+*_traced.svg
+*_smooth.svg
+*_raw.svg
+*_preview.png
+logo_binary.svg
+logo_test.svg
+

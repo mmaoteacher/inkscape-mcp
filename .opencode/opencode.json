@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "inkscape": {
+      "type": "local",
+      "command": ["node", "bin/inkscape-mcp.js"],
+      "env": { "MCP_TRANSPORT": "stdio" }
+    }
+  }
+}

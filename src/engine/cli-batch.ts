@@ -24,7 +24,12 @@ export class CliBatchEngine implements InkscapeEngine {
 
   async execute(ctx: ExecutionContext): Promise<ExecutionResult> {
     const start = Date.now();
-    const args = ctx.actions.concat(ctx.inputFile ? ["--file", ctx.inputFile] : []);
+    // Inkscape only accepts actions as a single semicolon-separated --actions argument;
+    // passing them as separate argv entries makes it try to interpret each as a file.
+    const args: string[] = [];
+    if (ctx.inputFile) args.push(`--file=${ctx.inputFile}`);
+    if (ctx.outputFile) args.push(`--export-filename=${ctx.outputFile}`);
+    if (ctx.actions.length > 0) args.push(`--actions=${ctx.actions.join(";")}`);
     return new Promise((resolve) => {
       const proc = spawn(this.binaryPath, args, { shell: false });
       let stdout = "";

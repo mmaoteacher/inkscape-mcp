@@ -11,9 +11,14 @@ for (const tool of tools) {
   const rawSchema = (tool.schema as any)._def?.typeName === "ZodObject"
     ? (tool.schema as any).shape || {}
     : (Object.keys((tool.schema as any)?.shape || {}).length > 0 ? (tool.schema as any).shape : tool.schema);
-  server.tool(tool.name, rawSchema, async (args: any) => {
-    return await tool.handler(args);
-  });
+  server.tool(
+    tool.name,
+    (tool as any).description || "",
+    rawSchema,
+    async (args: any) => {
+      return await tool.handler(args);
+    },
+  );
 }
 
 const mode = process.env.MCP_TRANSPORT || "stdio";
