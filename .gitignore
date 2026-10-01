@@ -8,3 +8,8 @@ node_modules/
 logo_binary.svg
 logo_test.svg
 
+# Inkscape round-trip / validation copies emitted by the authoring tools
+*_inkscape.svg
+*_check.svg
+untitled.svg
+

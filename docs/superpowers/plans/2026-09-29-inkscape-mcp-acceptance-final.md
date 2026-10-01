@@ -163,8 +163,35 @@
 - [PASS] `shell-daemon.ts` 實為壞碼：`actions.join("; ")` 分隔符錯誤、stdout 累加不清空、
       固定 500ms 競態、永遠回 `success: true`
 - [PASS] 職責由 `src/engine/runner.ts` 實際承擔
-- [PASS] `README.md` 重寫：6 個工具說明、並行派發注意事項、架構圖（原本僅列 2 個工具
+- [PASS] `README.md` 重寫：10 個工具說明、並行派發注意事項、架構圖（原本僅列 2 個工具
       且引用已刪除的引擎）
+
+#### H. 新增 4 個工具：從零建立文件（工具總數 6 → 10）
+
+| 工具 | 驗證 | 結果 |
+|---|---|---|
+| `inkscape_create_document` | 300x200 空白畫布 + 背景 | ✅ OK，Inkscape 驗證通過 |
+| `inkscape_create_document` | 不存在的 `baseFile` | ✅ FAILED |
+| `inkscape_add_shape` | rect / circle / star / polygon | ✅ 全部 OK，且經 Inkscape round-trip 確認 id 存在 |
+| `inkscape_add_shape` | 對非 SVG 檔案（PNG） | ✅ FAILED（明確指出非 SVG） |
+| `inkscape_add_shape` | 缺少必要參數（circle 無 `r`） | ✅ FAILED（指名欄位） |
+| `inkscape_add_shape` | 非法 id `a" onload="x` | ✅ **拒絕**（屬性注入防護） |
+| `inkscape_add_shape` | polygon 點數不足 | ✅ FAILED（附範例） |
+| `inkscape_add_text` | 特殊字元 `Hi & "bye" <ok>` | ✅ OK，渲染正確未遭破壞 |
+| `inkscape_add_text` | 空字串 | ✅ zod 擋下 |
+| `inkscape_list_objects` | 7 個物件（含圖層/群組遞迴） | ✅ 逐一回報 id、元素型別、bbox |
+
+**驗證機制**：產出的 markup 一律交由 Inkscape 重新開啟並匯出，再確認新元素確實存在
+（`add_shape` 比對 id、`add_text` 量測實際排版尺寸）。Markup 寫錯不會留下「看似成功」的空檔案。
+
+- [PASS] `list_objects` 以 `--query-all` 取得**權威幾何**（Inkscape 實測值），
+      而非以 regex 推測；元素型別才由淺層掃描補充
+- [PASS] 實測完整管線（循序 client）：
+      `create_document` → `add_shape` x2 → `add_text` → `boolean_op` →
+      `text_to_path` → `list_objects` → `render_preview` 全部成功
+- [NOTE] 修正 `boolean_op` 兩處誤報：單一物件合併（no-op）不應報 FAILED；
+      混合文件中的 `<text>`/`<image>` 屬正常內容，改為提示而非失敗
+- [NOTE] 實測確認不相交形狀做 intersection 仍正確回報 FAILED（2 → 0 空結果）
 
 ### 2.4 高階語意抽象（`ShellDaemonEngine`）
 

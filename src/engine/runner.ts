@@ -26,6 +26,8 @@ export interface ActionRunOptions {
 
 export interface ActionRunResult {
   ok: boolean;
+  /** Process exit status; null when the process was killed or never started. */
+  status: number | null;
   stdout: string;
   stderr: string;
   durationMs: number;
@@ -77,6 +79,7 @@ export function runActions(binaryPath: string, options: ActionRunOptions): Actio
 
   return {
     ok: !spawnError && result.status === 0 && !actionError,
+    status: result.status ?? null,
     stdout,
     stderr,
     durationMs: Date.now() - start,

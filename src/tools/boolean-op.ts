@@ -60,6 +60,9 @@ export async function runBooleanOp(rawArgs: z.infer<typeof booleanOpSchema>) {
 
   const before = readFileSync(args.inputFile, "utf-8");
   const beforeCount = countObjects(before);
+  // Combining a single object is legitimately a no-op, so the "count must drop"
+  // check only applies when there was something to actually combine.
+  const multiObject = args.objectIds ? args.objectIds.length >= 2 : beforeCount >= 2;
 
   // With explicit ids, select them in the given order so z-order is deterministic.
   const selection = args.objectIds?.length
@@ -105,13 +108,18 @@ export async function runBooleanOp(rawArgs: z.infer<typeof booleanOpSchema>) {
 
     if (afterCount === 0) {
       problems.push("result contains no drawable objects - the operation consumed everything");
-    } else if (afterCount >= beforeCount && args.operation !== "combine" && args.operation !== "division") {
+    } else if (multiObject && afterCount >= beforeCount && args.operation !== "combine" && args.operation !== "division") {
       problems.push(
         `object count did not decrease (${beforeCount} -> ${afterCount}); the shapes may not overlap`,
       );
+    } else if (!multiObject) {
+      report.push("Note: only one object was selected, so the operation is a no-op by definition");
     }
-    if (/<(image|text)[\s>]/.test(after)) {
-      problems.push("output still contains a raster image or live text element");
+    // Other elements may legitimately live in the same document (e.g. a text label
+    // beside the shapes being combined), so this is informational, not a failure.
+    const nonPath = (after.match(/<(image|text)[\s>]/g) || []).length;
+    if (nonPath > 0) {
+      report.push(`Note: output also contains ${nonPath} <image>/<text> element(s) outside the boolean result`);
     }
   }
 
