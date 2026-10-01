@@ -7,16 +7,36 @@ import { tools } from "./tools/index.ts";
 
 const server = new McpServer({ name: "inkscape-mcp", version: "0.1.0" });
 
+/**
+ * The SDK dispatches tools/call requests concurrently, so two Inkscape processes can run
+ * at once and clobber each other's output. Serialising execution keeps one document
+ * operation at a time.
+ *
+ * Note: this does NOT guarantee submission order - pipelined requests may still be
+ * dispatched out of order, so a tool that consumes a previous tool's output must be sent
+ * only after that tool's response has been received.
+ */
+let toolQueue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = toolQueue.then(task, task);
+  // Keep the chain alive regardless of individual failures.
+  toolQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 for (const tool of tools) {
   const rawSchema = (tool.schema as any)._def?.typeName === "ZodObject"
     ? (tool.schema as any).shape || {}
     : (Object.keys((tool.schema as any)?.shape || {}).length > 0 ? (tool.schema as any).shape : tool.schema);
   server.tool(
     tool.name,
-    (tool as any).description || "",
+    tool.description || "",
     rawSchema,
     async (args: any) => {
-      return await tool.handler(args);
+      return await enqueue(() => tool.handler(args));
     },
   );
 }

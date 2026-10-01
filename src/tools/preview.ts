@@ -10,6 +10,13 @@ export const previewSchema = z.object({
   outputPath: z.string().optional(),
 });
 
+export const previewDescription = [
+  "Render an SVG to a PNG raster and return it inline for visual verification.",
+  "This is the feedback loop for the other tools: run an edit, then preview the result",
+  "to confirm the geometry actually changed. Returns a real base64 PNG (never a mock),",
+  "plus the path of the written file.",
+].join(" ");
+
 export async function renderPreview(args: z.infer<typeof previewSchema>) {
   const detected = detectInkscape();
   const binary = detected.found ? detected.path : "inkscape";

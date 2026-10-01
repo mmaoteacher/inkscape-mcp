@@ -125,7 +125,46 @@
       HTTP 傳輸改用內建 `node:http`，零 web framework 依賴
 - [PASS] 外部 import 全部對應已宣告依賴：`@modelcontextprotocol/sdk`、`zod`（其餘皆為 node 內建模組）
 - [PASS] `Streamable HTTP` 實測：`/health` 回 `{"status":"ok"}`、`/mcp` initialize 回 SSE、
-      `tools/list` 回完整 3 個工具（2500 bytes）、未知路徑回 404
+      `tools/list` 回完整工具清單、未知路徑回 404
+
+#### E. 新增 3 個工具（`raw_actions` / `boolean_op` / `text_to_path`）
+
+共用執行器 `src/engine/runner.ts`：單一 `--actions=` 參數、加入
+`findActionError()` 偵測 stderr 中的 action 層級錯誤（Inkscape 拒絕 action 時仍回 exit 0），
+，杜絕「exit 0 但事情沒做」的假成功。
+
+| 工具 | 驗證 | 結果 |
+|---|---|---|
+| `inkscape_boolean_op` | union（2 物件 → 1） | ✅ OK |
+| `inkscape_boolean_op` | intersection 套用不相交形狀（2 → 0） | ✅ **FAILED**（正確：偵測到空結果） |
+| `inkscape_boolean_op` | 不支援的 operation（`xor`） | ✅ 被 zod 擋下 |
+| `inkscape_text_to_path` | 僅轉換 `objectIds:["t1"]` | ✅ text 1→0、path 0→1，rect/circle 未動 |
+| `inkscape_text_to_path` | 對不含 `<text>` 的檔案 | ✅ FAILED（明確說明無可轉換內容） |
+| `inkscape_raw_actions` | `select-all;object-to-path` | ✅ OK，path=1 text=0 |
+| `inkscape_raw_actions` | `select-all;totally-bogus-action` | ✅ **FAILED**（非 OK — 核心修正） |
+
+> `boolean_op` 會驗證物件數量是否真的下降。若形狀不相交，Inkscape 會產出空結果但回 exit 0，
+> 舊行為會回報 `OK`；新行為正確報 `FAILED`。
+
+#### F. 工具並行派發的重大發現
+
+實測發現 **MCP SDK 會並行派發 `tools/call` 且不保序**：一次送出 4 個相依請求時，
+實際進入 handler 的順序為 `13, 12, 10, 11`，導致 `boolean_op` 讀不到上一個工具尚未寫出的檔案，
+產生**假性的 `input not found`**（可重現 3/3 次）。
+
+- [PASS] 於 `src/index.ts` 加入序列化佇列，避免兩個 Inkscape 行程同時寫同一檔案
+- [PASS] 實測以循序 client（逐個送出、等待回應）執行完整鏈路：
+      `trace` → `raw_actions` → `boolean_op` → `preview` 全部成功
+- [NOTE] 序列化**不保證提交順序**；相依呼叫必須等上一個回應後再送出（已寫入 README）
+
+#### G. 死碼清理
+
+- [PASS] 刪除 `cli-batch.ts`、`shell-daemon.ts`、`types.ts`（彼此引用、無人使用）
+- [PASS] `shell-daemon.ts` 實為壞碼：`actions.join("; ")` 分隔符錯誤、stdout 累加不清空、
+      固定 500ms 競態、永遠回 `success: true`
+- [PASS] 職責由 `src/engine/runner.ts` 實際承擔
+- [PASS] `README.md` 重寫：6 個工具說明、並行派發注意事項、架構圖（原本僅列 2 個工具
+      且引用已刪除的引擎）
 
 ### 2.4 高階語意抽象（`ShellDaemonEngine`）
 
